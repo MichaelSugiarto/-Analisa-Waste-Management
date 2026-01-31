@@ -24,7 +24,12 @@ def load_data():
         if col in df_int.columns:
             df_int[col] = pd.to_numeric(df_int[col], errors='coerce').fillna(0)
     
-    df_int['Total_Biaya_Ops'] = df_int[list(cols_biaya.values())].sum(axis=1)
+    # REVISI: Hitung Total Biaya Ops TANPA DEBIT
+    komponen_biaya = ['Parkir', 'Tol', 'Tambal Ban', 'Retribusi']
+    # Pastikan kolom ada
+    valid_cols = [c for c in komponen_biaya if c in df_int.columns]
+    df_int['Total_Biaya_Ops'] = df_int[valid_cols].sum(axis=1)
+    
     df_int['Brt Bersih'] = pd.to_numeric(df_int['Brt Bersih'], errors='coerce').fillna(0)
     
     col_loc = [c for c in df_int.columns if 'Lokasi' in c][0]
@@ -73,12 +78,13 @@ mask_valid = ((df_int_f['Tgl kegiatan'] <= cutoff_date) & (df_int_f['BS'].notna(
              (df_int_f['Tgl kegiatan'] > cutoff_date)
 df_int_valid = df_int_f[mask_valid].copy()
 
-# 2. Total Ops Dasar
-list_komponen = ['Parkir', 'Tol', 'Tambal Ban', 'Retribusi', 'Debit']
+# 2. Total Ops Dasar (REVISI: Hapus Debit dari list komponen)
+list_komponen = ['Parkir', 'Tol', 'Tambal Ban', 'Retribusi']
 breakdown_vals = df_int_valid[list_komponen].sum()
 total_ops = breakdown_vals.sum()
 
 # --- KOREKSI DATA 30 SEPTEMBER ---
+# Total_Biaya_Ops di sini sudah tidak mengandung Debit karena logic di load_data sudah diubah
 cost_sept_30 = df_int[df_int['Tgl kegiatan'] == '2025-09-30']['Total_Biaya_Ops'].sum()
 total_ops_corrected = total_ops - cost_sept_30
 
@@ -103,7 +109,7 @@ cost_per_kg_int = total_int/weight_int if weight_int else 0
 cost_per_kg_ext = total_ext/weight_ext if weight_ext else 0
 
 # Internal
-c1.metric("Biaya Internal", f"Rp {total_int:,.0f}", help=f"Sudah dikurangi biaya 30 Sept (Rp {cost_sept_30:,.0f})")
+c1.metric("Biaya Internal", f"Rp {total_int:,.0f}", help=f"Tanpa Debit. Sudah dikurangi biaya 30 Sept (Rp {cost_sept_30:,.0f})")
 c2.metric("Total Berat Internal", f"{weight_int:,.0f} Kg")
 c3.metric("Cost/Kg Internal", f"Rp {cost_per_kg_int:,.0f}")
 
@@ -147,6 +153,7 @@ st.markdown("---")
 
 # TREN HARIAN
 st.subheader("📈 Tren Pengeluaran Harian (Ops + BBM)")
+# Ops Harian sekarang juga sudah bersih dari Debit
 df_int_daily = df_int_valid.groupby('Tgl kegiatan')['Total_Biaya_Ops'].sum().reset_index()
 df_int_daily.rename(columns={'Tgl kegiatan': 'Tanggal'}, inplace=True)
 df_bbm_daily = df_bbm[(df_bbm['Tanggal'] >= start_d) & (df_bbm['Tanggal'] <= end_d)].groupby('Tanggal')['Total'].sum().reset_index()
@@ -182,7 +189,7 @@ with col_a1:
     
     st.markdown(f"**1. Utilitas Truk Internal (Load Factor)**")
     
-    # --- KETERANGAN RANGE ---
+    # --- TEKS KETERANGAN (PUTIH) ---
     st.markdown(f"""
     <div style="font-size: 13px; color: white; margin-bottom: 10px;">
     <b>Keterangan Kategori (Benchmark Max: {MAX_CAPACITY:,.0f} Kg):</b><br>
@@ -232,10 +239,6 @@ with col_a1:
     # 2. FORMATTING TAMPILAN
     df_show['Tgl kegiatan'] = df_show['Tgl kegiatan'].dt.strftime('%Y-%m-%d')
     
-    # Hapus baris pemformatan manual string ini agar tetap jadi angka untuk sorting!
-    # df_show['Brt Bersih'] = df_show['Brt Bersih'].map('{:,.0f}'.format) 
-    # df_show['Load_Factor'] = df_show['Load_Factor'].map('{:.1f}%'.format)
-    
     # Gunakan column_config untuk mengatur tampilan angka
     st.dataframe(
         df_show, 
@@ -244,11 +247,11 @@ with col_a1:
         column_config={
             "Brt Bersih": st.column_config.NumberColumn(
                 "Brt Bersih (Kg)",
-                format="%d" # Tampilkan sebagai integer
+                format="%d" 
             ),
             "Load_Factor": st.column_config.NumberColumn(
                 "Load Factor",
-                format="%.1f%%" # Tampilkan dengan %
+                format="%.1f%%" 
             )
         }
     )
