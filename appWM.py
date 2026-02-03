@@ -166,20 +166,20 @@ with col_r:
 
 st.markdown("---")
 
-# TREN HARIAN (FIX: Filter by Tonase + Normalize Date)
+# TREN HARIAN
 st.subheader("📈 Tren Pengeluaran Harian (Ops + BBM)")
 
 # 1. Normalkan tanggal
 df_int_f['Tanggal_Plot'] = df_int_f['Tgl kegiatan'].dt.normalize()
 df_ext_f['Tanggal_Plot'] = df_ext_f['TANGGAL'].dt.normalize()
 
-# 2. Filter Khusus Tren Harian: Hanya baris dengan Tonase terisi
+# 2. Filter Khusus Tren Harian
 if 'Tonase Angkutan Sampah' in df_int_f.columns:
     df_trend_source = df_int_f[df_int_f['Tonase Angkutan Sampah'].notna()].copy()
 else:
     df_trend_source = df_int_f.copy()
 
-# 3. Grouping berdasarkan tanggal
+# 3. Grouping
 df_int_daily = df_trend_source.groupby('Tanggal_Plot')['Total_Biaya_Ops'].sum().reset_index()
 df_int_daily.rename(columns={'Tanggal_Plot': 'Tanggal'}, inplace=True)
 
@@ -188,7 +188,7 @@ df_bbm_daily['Tanggal_Plot'] = df_bbm_daily['Tanggal'].dt.normalize()
 df_bbm_daily_grp = df_bbm_daily.groupby('Tanggal_Plot')['Total'].sum().reset_index()
 df_bbm_daily_grp.rename(columns={'Tanggal_Plot': 'Tanggal'}, inplace=True)
 
-# Merge Internal & BBM
+# Merge
 df_trend_int = pd.merge(df_int_daily, df_bbm_daily_grp, on='Tanggal', how='outer').fillna(0)
 df_trend_int['Biaya Internal'] = df_trend_int['Total_Biaya_Ops'] + df_trend_int['Total']
 
@@ -280,14 +280,18 @@ st.markdown("---")
 st.header("🔧 Simulasi Strategi & Investasi")
 st.caption(f"Menggunakan Data Rata-rata Bulanan dari Periode: {start_d.strftime('%d-%b')} s/d {end_d.strftime('%d-%b')} ({num_months} Bulan)")
 
-tab1, tab2, tab3, tab4 = st.tabs(["1. Modifikasi Bak", "2. Peningkatan Ritase", "3. Tambah Armada", "4. Alat Compactor"])
+# Common Help Texts
+help_net_saving = "Uang yang dihemat karena jumlah ritase berkurang (tagihan vendor turun)"
+help_net_profit = "Uang yang dihemat karena biaya angkut sendiri lebih murah dibandingkan bayar vendor"
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["1. Modifikasi Bak", "2. Peningkatan Ritase", "3. Tambah Armada", "4. Mesin Press Hydrolik", "5. Compactor Roller"])
 
 # --- TAB 1: MODIFIKASI BAK ---
 with tab1:
     st.subheader("Simulasi Peningkatan Kapasitas Bak")
     col1a, col1b = st.columns(2)
     with col1a:
-        vol_current = 6.0 # Set Default Hidden
+        vol_current = 6.0 
         vol_target = st.number_input("Target Volume Baru (m3)", min_value=6.0, value=8.0, step=0.5)
         biaya_modif = st.number_input("Biaya Modifikasi Bak (Rp)", value=15000000, step=500000)
         
@@ -301,26 +305,43 @@ with tab1:
     
     st.markdown("##### 🧮 Hasil Perhitungan Ekonomi:")
     if vol_target > vol_current:
+        # Calculations
         pct_increase = (vol_target - vol_current) / vol_current
-        diff_vol = vol_target - vol_current
-        
-        st.write(f"- Peningkatan Kapasitas: **{pct_increase*100:.1f}%**")
-        # Line tambahan muatan DIHAPUS sesuai request
         
         avg_rit_ext_monthly = count_rit_ext / num_months
-        rit_hemat_monthly = avg_rit_ext_monthly * (1 - (vol_current/vol_target))
+        
+        # New Rit Calculation Logic
+        ratio = vol_current / vol_target
+        rit_baru_est = avg_rit_ext_monthly * ratio
+        rit_hemat_monthly = avg_rit_ext_monthly - rit_baru_est
+        
         uang_hemat_monthly = rit_hemat_monthly * HARGA_EKSTERNAL_PER_RIT
         uang_hemat_yearly = uang_hemat_monthly * 12
-        
-        st.write(f"- Potensi Pengurangan Ritase: **{rit_hemat_monthly:.1f} Rit/Bulan**")
         
         bep_modif = biaya_modif / uang_hemat_monthly if uang_hemat_monthly > 0 else 0
         net_saving_y1 = uang_hemat_yearly - biaya_modif
         
+        st.write(f"- Peningkatan Kapasitas: **{pct_increase*100:.1f}%**")
+        st.write(f"- Potensi Pengurangan Ritase: **{rit_hemat_monthly:.1f} Rit/Bulan**")
+        
+        # --- DETAIL CALCULATION (FIXED FORMAT STRINGS) ---
+        with st.expander("ℹ️ Detail Perhitungan Pengurangan Ritase"):
+            st.markdown("**Konsep:** Volume bak yang lebih besar berarti truk bisa mengangkut lebih banyak sampah dalam satu kali jalan. Ini mengurangi frekuensi bolak-balik.")
+            
+            # Using .format() for safety
+            st.latex(r"Rasio = \frac{{Vol_{{Awal}}}}{{Vol_{{Baru}}}} = \frac{{{:.1f}}}{{{:.1f}}} = {:.2f}".format(vol_current, vol_target, ratio))
+            st.write(f"Artinya: 1 Rit truk baru setara dengan {(1/ratio):.2f} Rit truk lama.")
+            
+            st.markdown("**Perhitungan Ritase:**")
+            st.latex(r"Rit_{{Avg}} = {:.1f} \text{{ Rit/Bulan}}".format(avg_rit_ext_monthly))
+            st.latex(r"Rit_{{Baru}} = Rit_{{Avg}} \times Rasio = {:.1f} \times {:.2f} = {:.1f} \text{{ Rit}}".format(avg_rit_ext_monthly, ratio, rit_baru_est))
+            st.latex(r"Hemat = Rit_{{Avg}} - Rit_{{Baru}} = {:.1f} - {:.1f} = \mathbf{{{:.1f}}} \text{{ Rit}}".format(avg_rit_ext_monthly, rit_baru_est, rit_hemat_monthly))
+        # -----------------------------------------------
+        
         c_res1, c_res2, c_res3 = st.columns(3)
         c_res1.metric("BEP (Balik Modal)", f"{bep_modif:.1f} Bulan")
-        c_res2.metric("Net Saving per Bulan", f"Rp {uang_hemat_monthly:,.0f}")
-        c_res3.metric("Net Saving per Tahun", f"Rp {uang_hemat_yearly:,.0f}")
+        c_res2.metric("Net Saving per Bulan", f"Rp {uang_hemat_monthly:,.0f}", help=help_net_saving)
+        c_res3.metric("Net Saving per Tahun", f"Rp {uang_hemat_yearly:,.0f}", help=help_net_saving)
 
 # --- TAB 2: PENINGKATAN RITASE (LEMBUR) ---
 with tab2:
@@ -333,7 +354,7 @@ with tab2:
         hari_kerja_lembur = st.number_input("Jumlah Hari Lembur per Bulan", min_value=1, max_value=31, value=25)
         
         st.markdown("###### ⏰ Kalkulator Upah Lembur:")
-        gaji_total_karyawan = st.number_input("Total Gaji Bulanan (Supir+Kernet)", value=6000000, step=100000)
+        gaji_total_karyawan = st.number_input("Total Gaji Bulanan", value=5000000, step=100000)
         jam_lembur = st.number_input("Estimasi Jam Lembur per Hari", min_value=1.0, value=2.0, step=0.5)
         
         # LOGIKA PERHITUNGAN LEMBUR
@@ -356,7 +377,6 @@ with tab2:
     
     with c2b:
         st.markdown("##### 🧮 Rincian Biaya:")
-        # VISUAL BLOCK: DETAIL HITUNGAN LEMBUR
         st.markdown(f"""
         <div style="background-color: #262730; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
         <b>Detail Perhitungan Lembur ({jam_lembur} Jam):</b><br>
@@ -367,16 +387,14 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
         
-        # Text "Asal Biaya Variabel..." DIHAPUS sesuai request
-        
         st.write(f"1. Biaya Variabel Internal: Rp {avg_cost_variable_per_rit:,.0f}/Rit")
         st.write(f"2. Alokasi Biaya Lembur: Rp {cost_lembur_per_rit:,.0f}/Rit")
         st.write(f"**Total Cost Internal: Rp {marginal_cost_total:,.0f}/Rit**")
         
         c_p1, c_p2, c_p3 = st.columns(3)
-        c_p1.metric("Net Profit per Rit", f"Rp {net_profit_per_rit:,.0f}")
-        c_p2.metric("Net Profit per Bulan", f"Rp {net_profit_monthly:,.0f}", help=f"Dikali {hari_kerja_lembur} hari kerja")
-        c_p3.metric("Net Profit per Tahun", f"Rp {net_profit_yearly:,.0f}")
+        c_p1.metric("Net Profit per Rit", f"Rp {net_profit_per_rit:,.0f}", help=help_net_profit)
+        c_p2.metric("Net Profit per Bulan", f"Rp {net_profit_monthly:,.0f}", help=help_net_profit)
+        c_p3.metric("Net Profit per Tahun", f"Rp {net_profit_yearly:,.0f}", help=help_net_profit)
 
 # --- TAB 3: TAMBAH ARMADA ---
 with tab3:
@@ -385,8 +403,8 @@ with tab3:
     c3a, c3b = st.columns(2)
     with c3a:
         harga_truk = st.number_input("Harga Beli Truk (Rp)", value=350000000, step=10000000)
-        gaji_supir_kernet = st.number_input("Total Gaji Supir & Kernet Baru (Rp/Bulan)", value=6000000)
-        kapasitas_truk_baru = st.number_input("Kapasitas Truk Baru (m3)", value=4.0)
+        gaji_supir_kernet = st.number_input("Total Gaji Bulanan (Rp/Bulan)", value=5000000)
+        kapasitas_truk_baru = st.number_input("Kapasitas Truk Baru (m3)", value=6.0)
         
     with c3b:
         st.markdown("##### 🧮 Perhitungan Bulanan:")
@@ -399,32 +417,122 @@ with tab3:
         saving_yearly = saving_monthly * 12
         
         st.write(f"- Tagihan Vendor Hilang: **Rp {tagihan_vendor_avg:,.0f}/Bulan**")
-        st.write(f"- Biaya Ops Truk Baru: **Rp {biaya_ops_baru:,.0f}/Bulan**")
+        st.write(f"- Biaya Operasional: **Rp {biaya_ops_baru:,.0f}/Bulan**")
         
         c_sav1, c_sav2, c_sav3 = st.columns(3)
-        bep_truk = harga_truk / saving_monthly if saving_monthly > 0 else 0
         
-        c_sav1.metric("BEP (Balik Modal)", f"{bep_truk:.1f} Bulan")
-        c_sav2.metric("Net Saving per Bulan", f"Rp {saving_monthly:,.0f}")
-        c_sav3.metric("Net Saving per Tahun", f"Rp {saving_yearly:,.0f}")
+        # LOGIKA VISUALISASI RUGI/LABA
+        if saving_monthly > 0:
+            bep_truk = harga_truk / saving_monthly
+            c_sav1.metric("BEP (Balik Modal)", f"{bep_truk:.1f} Bulan")
+        else:
+            c_sav1.metric("BEP (Balik Modal)", "Tidak Balik Modal")
+            
+        c_sav2.metric("Net Saving per Bulan", f"Rp {saving_monthly:,.0f}", help=help_net_saving)
+        c_sav3.metric("Net Saving per Tahun", f"Rp {saving_yearly:,.0f}", help=help_net_saving)
 
-# --- TAB 4: COMPACTOR ROLLER ---
+# --- TAB 4: HYDRAULIC PRESS ---
 with tab4:
-    st.subheader("Simulasi Investasi Alat Compactor")
+    st.subheader("Simulasi Mesin Press Hidrolik (Vertical Baler)")
     
     col4a, col4b = st.columns(2)
     
     with col4a:
-        pct_lunak = st.slider("Komposisi Sampah Lunak (%)", 0, 100, 70)
-        rasio_padat = st.slider("Rasio Pemadatan (Kali Lipat)", 1.0, 4.0, 2.0)
-        harga_alat = st.number_input("Harga Alat Compactor (Rp)", value=100000000, step=10000000)
-        opex_alat = st.number_input("Biaya Ops Alat (BBM/Maintenance) per Bulan", value=2000000)
-        batas_berat_truk = st.number_input("Batas Max Berat Truk (Kg)", value=2500)
+        berat_bale = st.number_input("Estimasi Berat per Bale (Kg)", value=75, step=5, help="Berat hasil press dalam satu bale")
+        
+        harga_alat = st.number_input("Harga Mesin Press (Rp)", value=42000000, step=1000000)
+        opex_alat = st.number_input("Biaya Listrik & Tali per Bulan (Rp)", value=600000, step=50000)
+        
+        batas_berat_truk = st.number_input("Batas Max Berat Truk (Kg)", value=2000)
     
     with col4b:
         st.markdown("##### 🧮 Detail Perhitungan:")
-        densitas_loose = 250
+        densitas_loose = 300 
+        kapasitas_vol_truk = 6.0 
+        
         berat_simulasi = (weight_int / num_months) 
+        
+        # 1. Hitung Ritase LAMA (Loose)
+        vol_loose_total = berat_simulasi / densitas_loose
+        rit_lama_vol = vol_loose_total / kapasitas_vol_truk
+        rit_lama_berat = berat_simulasi / batas_berat_truk
+        rit_lama = max(rit_lama_vol, rit_lama_berat)
+        
+        # 2. Hitung Ritase BARU (Baled/Pressed)
+        densitas_bale = 500 
+        vol_per_bale = berat_bale / densitas_bale 
+        
+        bales_per_truck_vol = kapasitas_vol_truk / vol_per_bale
+        bales_per_truck_weight = batas_berat_truk / berat_bale
+        real_bales_per_trip = min(bales_per_truck_vol, bales_per_truck_weight)
+        
+        total_bales_needed = berat_simulasi / berat_bale
+        rit_baru = total_bales_needed / real_bales_per_trip
+        
+        # --- DETAIL EXPANDER ---
+        with st.expander("ℹ️ Detail Perhitungan & Asumsi"):
+            st.markdown("**1. Kondisi Lama (Loose):**")
+            st.write(f"- Densitas: **{densitas_loose} Kg/m³**")
+            st.write(f"- Volume Sampah: {berat_simulasi:,.0f} / {densitas_loose} = **{vol_loose_total:.1f} m³**")
+            st.write(f"- Ritase (Max Vol vs Berat): **{rit_lama:.1f} Rit**")
+
+            st.markdown("**2. Kondisi Baru (Pressed Bale):**")
+            st.write(f"- Berat per Bale: **{berat_bale} Kg**")
+            st.write(f"- Estimasi Vol per Bale: {berat_bale}/{densitas_bale} = **{vol_per_bale:.2f} m³** (Asumsi densitas bale 500 kg/m³)")
+            st.write(f"- Muatan Truk (by Vol): 6.0 / {vol_per_bale:.2f} = **{bales_per_truck_vol:.1f} Bale**")
+            st.write(f"- Muatan Truk (by Berat): {batas_berat_truk} / {berat_bale} = **{bales_per_truck_weight:.1f} Bale**")
+            st.write(f"- **Realita Angkut:** Maksimal **{int(real_bales_per_trip)} Bale/Trip** (Dibulatkan ke bawah)")
+            st.latex(r"Rit_{{Baru}} = \frac{{TotalBale}}{{BalePerTrip}} = \frac{{{:.0f}}}{{{}}} = \mathbf{{{:.1f}}}".format(total_bales_needed, int(real_bales_per_trip), rit_baru))
+        # -----------------------
+
+        st.write(f"Ritase Tanpa Press: **{rit_lama:.1f} Rit**")
+        st.write(f"Ritase Dengan Press: **{rit_baru:.1f} Rit**")
+        
+        delta_rit = rit_lama - rit_baru
+        saving_rit_cost = delta_rit * avg_cost_variable_per_rit
+        
+        net_saving_alat_monthly = saving_rit_cost - opex_alat
+        net_saving_alat_yearly = net_saving_alat_monthly * 12
+        
+        c_alat1, c_alat2, c_alat3 = st.columns(3)
+        
+        if net_saving_alat_monthly > 0:
+            bep_alat = harga_alat / net_saving_alat_monthly
+            c_alat1.metric("BEP (Balik Modal)", f"{bep_alat:.1f} Bulan")
+        else:
+            c_alat1.metric("BEP (Balik Modal)", "Tidak Balik Modal")
+            
+        c_alat2.metric("Net Saving per Bulan", f"Rp {net_saving_alat_monthly:,.0f}", help=help_net_saving)
+        c_alat3.metric("Net Saving per Tahun", f"Rp {net_saving_alat_yearly:,.0f}", help=help_net_saving)
+
+# --- TAB 5: COMPACTOR ROLLER ---
+with tab5:
+    st.subheader("Simulasi Alat Compactor (Roller)")
+    
+    col5a, col5b = st.columns(2)
+    
+    with col5a:
+        pct_lunak = st.slider("Komposisi Sampah Lunak (%)", 0, 100, 70, key='pct_roller')
+        rasio_padat = st.slider("Rasio Pemadatan (Kali Lipat)", 1.0, 4.0, 2.0, key='rasio_roller')
+        
+        opsi_roller = st.radio("Opsi Pengadaan Roller:", ["Beli (Investasi)", "Sewa (Bulanan)"], horizontal=True, key='opsi_roller')
+        
+        if opsi_roller == "Beli (Investasi)":
+            harga_alat_rol = st.number_input("Harga Alat Compactor (Rp)", value=100000000, step=10000000, key='harga_roller')
+            biaya_sewa_rol = 0
+            opex_alat_rol = st.number_input("Biaya Operasional per Bulan", value=2000000, key='opex_roller')
+        else:
+            harga_alat_rol = 0
+            biaya_sewa_rol = st.number_input("Biaya Sewa Roller per Bulan (Rp)", value=5000000, step=500000, key='sewa_roller')
+            opex_alat_rol = 0 
+            
+        batas_berat_truk_rol = st.number_input("Batas Max Berat Truk (Kg)", value=2000, key='berat_roller')
+    
+    with col5b:
+        st.markdown("##### 🧮 Detail Perhitungan:")
+        densitas_loose = 300
+        kapasitas_vol_truk = 6.0
+        berat_simulasi = (weight_int / num_months)
         
         berat_lunak = berat_simulasi * (pct_lunak / 100)
         berat_keras = berat_simulasi * ((100-pct_lunak) / 100)
@@ -434,21 +542,60 @@ with tab4:
         vol_lunak_akhir = vol_lunak_awal / rasio_padat
         total_vol_baru = vol_keras + vol_lunak_akhir
         
-        kapasitas_vol_truk = 4.0 
         rit_by_vol = total_vol_baru / kapasitas_vol_truk
-        rit_by_weight = berat_simulasi / batas_berat_truk
+        rit_by_weight = berat_simulasi / batas_berat_truk_rol
         
-        rit_baru = max(rit_by_vol, rit_by_weight)
-        rit_lama = max((berat_simulasi/densitas_loose)/kapasitas_vol_truk, berat_simulasi/batas_berat_truk)
+        rit_baru_rol = max(rit_by_vol, rit_by_weight)
+        rit_lama_rol = max((berat_simulasi/densitas_loose)/kapasitas_vol_truk, berat_simulasi/batas_berat_truk_rol)
         
-        delta_rit = rit_lama - rit_baru
-        saving_rit_cost = delta_rit * avg_cost_variable_per_rit
-        net_saving_alat_monthly = saving_rit_cost - opex_alat
-        net_saving_alat_yearly = net_saving_alat_monthly * 12
+        # --- ADDED EXPANDER FOR ROLLER (FIXED FORMAT STRINGS) ---
+        with st.expander("ℹ️ Detail Perhitungan & Asumsi"):
+            st.markdown("**1. Asumsi Dasar:**")
+            st.write(f"- Densitas Sampah Lepas (Loose): **{densitas_loose} Kg/m³**")
+            st.write(f"- Kapasitas Volume Truk: **{kapasitas_vol_truk} m³**")
+
+            st.markdown("**2. Pemisahan Sampah:**")
+            st.latex(r"Berat_{{Lunak}} = {:,.0f} \times {}\% = {:,.0f} \text{{ Kg}}".format(berat_simulasi, pct_lunak, berat_lunak))
+            st.latex(r"Berat_{{Keras}} = {:,.0f} \times {}\% = {:,.0f} \text{{ Kg}}".format(berat_simulasi, 100-pct_lunak, berat_keras))
+
+            st.markdown("**3. Perubahan Volume (Compaction):**")
+            st.write(f"Sampah lunak dipadatkan dengan rasio **{rasio_padat}x**.")
+            st.latex(r"Vol_{{Keras}} = \frac{{{:.0f}}}{{{}}} = {:.2f} m^3".format(berat_keras, densitas_loose, vol_keras))
+            st.latex(r"Vol_{{LunakAwal}} = \frac{{{:.0f}}}{{{}}} = {:.2f} m^3".format(berat_lunak, densitas_loose, vol_lunak_awal))
+            st.latex(r"Vol_{{LunakAkhir}} = \frac{{{:.2f}}}{{{}}} = {:.2f} m^3".format(vol_lunak_awal, rasio_padat, vol_lunak_akhir))
+            st.latex(r"TotalVol_{{Baru}} = {:.2f} + {:.2f} = {:.2f} m^3".format(vol_keras, vol_lunak_akhir, total_vol_baru))
+
+            st.markdown("**4. Penentuan Ritase:**")
+            st.markdown("**(A) Jika Dibatasi Volume (Bak Penuh):**")
+            st.latex(r"Rit = \frac{{TotalVol_{{Baru}}}}{{KapasitasTruk}} = \frac{{{:.2f}}}{{{}}} = \mathbf{{{:.1f}}}".format(total_vol_baru, kapasitas_vol_truk, rit_by_vol))
+
+            st.markdown("**(B) Jika Dibatasi Berat (Truk Keberatan):**")
+            st.latex(r"Rit = \frac{{TotalBerat}}{{BatasMaxTruk}} = \frac{{{:.0f}}}{{{}}} = \mathbf{{{:.1f}}}".format(berat_simulasi, batas_berat_truk_rol, rit_by_weight))
+        # ---------------------------------------------
+
+        st.write(f"Ritase jika dibatasi Volume: **{rit_by_vol:.1f} Rit**")
+        st.write(f"Ritase jika dibatasi Berat: **{rit_by_weight:.1f} Rit**")
         
-        c_alat1, c_alat2, c_alat3 = st.columns(3)
-        bep_alat = harga_alat / net_saving_alat_monthly if net_saving_alat_monthly > 0 else 0
+        delta_rit_rol = rit_lama_rol - rit_baru_rol
+        saving_rit_cost_rol = delta_rit_rol * avg_cost_variable_per_rit
         
-        c_alat1.metric("BEP (Balik Modal)", f"{bep_alat:.1f} Bulan")
-        c_alat2.metric("Net Saving per Bulan", f"Rp {net_saving_alat_monthly:,.0f}")
-        c_alat3.metric("Net Saving per Tahun", f"Rp {net_saving_alat_yearly:,.0f}")
+        if opsi_roller == "Beli (Investasi)":
+             net_saving_rol_monthly = saving_rit_cost_rol - opex_alat_rol
+        else:
+             net_saving_rol_monthly = saving_rit_cost_rol - biaya_sewa_rol
+             
+        net_saving_rol_yearly = net_saving_rol_monthly * 12
+        
+        c_rol1, c_rol2, c_rol3 = st.columns(3)
+        
+        if opsi_roller == "Beli (Investasi)":
+            if net_saving_rol_monthly > 0:
+                bep_rol = harga_alat_rol / net_saving_rol_monthly
+                c_rol1.metric("BEP (Balik Modal)", f"{bep_rol:.1f} Bulan")
+            else:
+                c_rol1.metric("BEP (Balik Modal)", "Tidak Balik Modal")
+        else:
+            c_rol1.metric("Metode", "Sewa Bulanan")
+            
+        c_rol2.metric("Net Saving per Bulan", f"Rp {net_saving_rol_monthly:,.0f}", help=help_net_saving)
+        c_rol3.metric("Net Saving per Tahun", f"Rp {net_saving_rol_yearly:,.0f}", help=help_net_saving)
