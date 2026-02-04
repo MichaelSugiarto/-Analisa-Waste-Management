@@ -161,7 +161,7 @@ with col_r:
         'Biaya per Kg (Rp)': [cost_per_kg_int, cost_per_kg_ext]
     })
     fig_bar = px.bar(df_comp, x='Vendor', y='Biaya per Kg (Rp)', color='Vendor', 
-                     text_auto='.0f', color_discrete_map={'Internal':'#2ecc71', 'Eksternal':'#e74c3c'})
+                      text_auto='.0f', color_discrete_map={'Internal':'#2ecc71', 'Eksternal':'#e74c3c'})
     st.plotly_chart(fig_bar, use_container_width=True)
 
 st.markdown("---")
@@ -489,7 +489,7 @@ with tab4:
         st.write(f"Ritase Dengan Press: **{rit_baru:.1f} Rit**")
         
         delta_rit = rit_lama - rit_baru
-        saving_rit_cost = delta_rit * avg_cost_variable_per_rit
+        saving_rit_cost = delta_rit * HARGA_EKSTERNAL_PER_RIT # Changed per user request
         
         net_saving_alat_monthly = saving_rit_cost - opex_alat
         net_saving_alat_yearly = net_saving_alat_monthly * 12
@@ -577,7 +577,7 @@ with tab5:
         st.write(f"Ritase jika dibatasi Berat: **{rit_by_weight:.1f} Rit**")
         
         delta_rit_rol = rit_lama_rol - rit_baru_rol
-        saving_rit_cost_rol = delta_rit_rol * avg_cost_variable_per_rit
+        saving_rit_cost_rol = delta_rit_rol * HARGA_EKSTERNAL_PER_RIT # Changed per user request
         
         if opsi_roller == "Beli (Investasi)":
              net_saving_rol_monthly = saving_rit_cost_rol - opex_alat_rol
