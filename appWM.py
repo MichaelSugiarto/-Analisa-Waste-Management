@@ -259,7 +259,22 @@ with col_a1:
 
 with col_a2:
     st.markdown("**2. Efisiensi Ritase Eksternal**")
-    st.info("Optimal: Volume >= 4 m³. Boros: Volume < 4 m³.")
+    
+    # Hitung Total untuk ditampilkan di info
+    total_rit_pie = len(df_ext_f)
+    
+    # --- UPDATE HERE: Menggunakan Expander untuk penjelasan ---
+    with st.expander("Penjelasan Visualisasi"):
+        st.info(f"""
+        Grafik ini menentukan seberapa efisien biaya yang dikeluarkan dalam penggunaan vendor eksternal. 
+        Terlihat bahwa cukup sering vendor eksternal hanya menggunakan truk kapasitas 2 meter kubik padahal biaya yang dibayarkan apabila kita menggunakan truk 2 meter kubik ataupun 4 meter kubik sama-sama Rp 350.000.
+        
+        Area Merah menunjukkan ritase yang 'Boros' (menggunakan kapasitas kecil tapi bayar harga penuh).
+        
+        **Total Data: {total_rit_pie} Ritase (100% Lingkaran)**
+        """)
+    # ----------------------------------------------------------
+    
     df_ext_f['Status'] = df_ext_f['VOLUME'].apply(lambda x: 'Boros (<4m3)' if x < 4 else 'Optimal (>=4m3)')
     df_eff = df_ext_f['Status'].value_counts().reset_index()
     df_eff.columns = ['Status Efisiensi', 'Jumlah Rit']
@@ -267,7 +282,7 @@ with col_a2:
                      color_discrete_map={'Boros (<4m3)':'red', 'Optimal (>=4m3)':'green'})
     st.plotly_chart(fig_eff, use_container_width=True)
 
-st.markdown("**3. Top 10 Sumber Sampah (Pareto Internal)**")
+st.markdown("**3. Top 10 Depo Kontribusi Sampah**")
 df_pareto = df_int_f.groupby('Lokasi_Clean')['Brt Bersih'].sum().sort_values(ascending=False).head(10).reset_index()
 fig_par = px.bar(df_pareto, x='Brt Bersih', y='Lokasi_Clean', orientation='h', text_auto='.0f')
 fig_par.update_layout(yaxis={'categoryorder':'total ascending'})
@@ -284,7 +299,7 @@ st.caption(f"Menggunakan Data Rata-rata Bulanan dari Periode: {start_d.strftime(
 help_net_saving = "Uang yang dihemat karena jumlah ritase berkurang (tagihan vendor turun)"
 help_net_profit = "Uang yang dihemat karena biaya angkut sendiri lebih murah dibandingkan bayar vendor"
 
-tab1, tab2, tab3, tab4 = st.tabs(["1. Modifikasi Bak", "2. Peningkatan Ritase", "3. Tambah Armada", "4. Mesin Press Hydrolik"])
+tab1, tab2, tab3, tab4 = st.tabs(["1. Modifikasi Bak", "2. Peningkatan Ritase", "3. Tambah Armada", "4. Mesin Vertical Baler"])
 
 # --- TAB 1: MODIFIKASI BAK ---
 with tab1:
